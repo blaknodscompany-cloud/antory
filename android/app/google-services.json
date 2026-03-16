@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "770377397693",
+    "project_id": "antory-5981d",
+    "storage_bucket": "antory-5981d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:770377397693:android:058537944ef0467e894ed4",
+        "android_client_info": {
+          "package_name": "com.antory.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "770377397693-s10bgaldaqr74ljhbb9qorqar7icl2hv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.antory.app",
+            "certificate_hash": "4239f6d8644af7c906083b8e35faf2cb923b1e28"
+          }
+        },
+        {
+          "client_id": "770377397693-2mauh2hbpturn0hkstai394c2baa7g5l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4gfzRjAfuFaR_7lauFA8cp4UcY4xQ0g4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "770377397693-2mauh2hbpturn0hkstai394c2baa7g5l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
