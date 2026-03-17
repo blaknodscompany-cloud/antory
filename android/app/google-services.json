@@ -37,6 +37,13 @@
             {
               "client_id": "770377397693-2mauh2hbpturn0hkstai394c2baa7g5l.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "770377397693-n1use52m5bite74r1mch5mpo973362b9.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.challengeTakipFixed"
+              }
             }
           ]
         }

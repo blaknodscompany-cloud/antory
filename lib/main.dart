@@ -2,15 +2,27 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/material.dart';
+
 import 'package:confetti/confetti.dart';
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:table_calendar/table_calendar.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+
+  if (!Hive.isBoxOpen(kBoxName)) {
+    await Hive.openBox(kBoxName);
+  }
+
+  runApp(const AntoryApp());
+}
 
 const String kBoxName = 'db';
 
@@ -34,16 +46,25 @@ const String kUiLanguage = 'language';
 const String kOldTasksKey = 'tasks';
 const String kOldLogsKey = 'logs';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  await Hive.openBox(kBoxName);
-  runApp(const AntoryApp());
-}
-
 /// ------------------------------------------------------------
 /// helpers
 /// ------------------------------------------------------------
+String normalizeTaskName(String text) {
+  return text
+      .replaceAll('\u0131', 'ı')
+      .replaceAll('\u0130', 'İ')
+      .replaceAll('\u011f', 'ğ')
+      .replaceAll('\u011e', 'Ğ')
+      .replaceAll('\u015f', 'ş')
+      .replaceAll('\u015e', 'Ş')
+      .replaceAll('\u00f6', 'ö')
+      .replaceAll('\u00d6', 'Ö')
+      .replaceAll('\u00fc', 'ü')
+      .replaceAll('\u00dc', 'Ü')
+      .replaceAll('\u00e7', 'ç')
+      .replaceAll('\u00c7', 'Ç')
+      .trim();
+}
 
 DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
@@ -173,6 +194,9 @@ class L {
   AppLanguage get language => lang;
 
   static const Map<String, Map<String, String>> _v = {
+    'time_pick_title': {'tr': 'Saat seç', 'en': 'Select time'},
+    'time_pick_select': {'tr': 'Seç', 'en': 'Select'},
+    'completion_rate': {'tr': 'Tamamlama', 'en': 'Completion'},
     'app_name': {'tr': 'Antory', 'en': 'Antory'},
     'app_slogan': {'tr': 'Track Your Story', 'en': 'Track Your Story'},
     'today': {'tr': 'Bugün', 'en': 'Today'},
@@ -489,7 +513,12 @@ class DriveService {
 /// ------------------------------------------------------------
 
 class Repo {
-  final Box box = Hive.box(kBoxName);
+  Box get box {
+    if (!Hive.isBoxOpen(kBoxName)) {
+      throw StateError('Hive box "$kBoxName" is not open yet.');
+    }
+    return Hive.box(kBoxName);
+  }
 
   void ensureInitializedAndMigrateIfNeeded() {
     if (box.get(kTasksKey) == null) box.put(kTasksKey, <dynamic>[]);
@@ -784,7 +813,7 @@ class Repo {
     DateTime? validTo,
     List<int>? weekdays,
   }) async {
-    final trimmed = name.trim();
+    final trimmed = normalizeTaskName(name);
     if (trimmed.isEmpty) return;
 
     final tasks = getAllTasks();
@@ -815,7 +844,7 @@ class Repo {
     String? endTime,
     List<int>? weekdays,
   }) async {
-    final trimmed = newName.trim();
+    final trimmed = normalizeTaskName(newName);
     if (trimmed.isEmpty) return;
 
     final tasks = getAllTasks();
@@ -1680,6 +1709,12 @@ Future<String?> showHmPicker(
   String? initialValue,
 }) async {
   final theme = Theme.of(context);
+  final l = L(
+    (Hive.box(kBoxName).get(kUiStateKey) as Map?)?['language'] == 'en'
+        ? AppLanguage.en
+        : AppLanguage.tr,
+  );
+
   DateTime selected = parseTimeToDate(initialValue);
 
   final result = await showModalBottomSheet<String>(
@@ -1698,11 +1733,11 @@ Future<String?> showHmPicker(
                   children: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(null),
-                      child: const Text('İptal'),
+                      child: Text(l.t('cancel')),
                     ),
                     const Spacer(),
                     Text(
-                      'Saat seç',
+                      l.t('time_pick_title'),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
@@ -1711,7 +1746,7 @@ Future<String?> showHmPicker(
                     FilledButton(
                       onPressed: () =>
                           Navigator.of(context).pop(timeToHm(selected)),
-                      child: const Text('Seç'),
+                      child: Text(l.t('time_pick_select')),
                     ),
                   ],
                 ),
@@ -2486,6 +2521,8 @@ class _TodayScreenState extends State<TodayScreen> {
                     controller: name,
                     autofocus: true,
                     keyboardType: TextInputType.text,
+                    textInputAction: TextInputAction.done,
+                    maxLines: 1,
                     textCapitalization: TextCapitalization.sentences,
                     autocorrect: true,
                     enableSuggestions: true,
@@ -2828,42 +2865,55 @@ class _TodayScreenState extends State<TodayScreen> {
     final validTasks = repo.tasksForDate(_selectedDate);
     final logs = repo.logsForDate(_selectedDate);
 
-    if (validTasks.isEmpty) {
-      return ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          const SizedBox(height: 20),
-          Center(child: Text(l.t('no_task_for_date'))),
-        ],
-      );
-    }
+    final items = <Widget>[];
 
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: validTasks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
-        final task = validTasks[i];
+    if (validTasks.isEmpty) {
+      items.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 20, bottom: 12),
+          child: Center(child: Text(l.t('no_task_for_date'))),
+        ),
+      );
+    } else {
+      for (final task in validTasks) {
         final id = task['id'] as String;
         final name = task['name'] as String;
         final isDone = logs[id] == true;
         final timeText = taskTimeText(task);
 
-        return TaskTile(
-          name: name,
-          done: isDone,
-          timeText: timeText,
-          doneLabel: l.t('completed'),
-          onChanged: (v) async {
-            await repo.setDone(_selectedDate, id, v ?? false);
-            if (!mounted) return;
-            setState(() {});
-            widget.onDataChanged();
-            await _maybeConfettiIfPerfectToday();
-          },
-          onLongPress: () => _showTaskActionsSheet(task),
+        items.add(
+          TaskTile(
+            name: name,
+            done: isDone,
+            timeText: timeText,
+            doneLabel: l.t('completed'),
+            onChanged: (v) async {
+              await repo.setDone(_selectedDate, id, v ?? false);
+              if (!mounted) return;
+              setState(() {});
+              widget.onDataChanged();
+              await _maybeConfettiIfPerfectToday();
+            },
+            onLongPress: () => _showTaskActionsSheet(task),
+          ),
         );
-      },
+
+        items.add(const SizedBox(height: 10));
+      }
+    }
+
+    items.add(
+      AddTaskBottomCard(
+        label: l.t('add_task'),
+        onTap: _showAddTaskMenu,
+      ),
+    );
+
+    items.add(const SizedBox(height: 8));
+
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: items,
     );
   }
 
@@ -2877,11 +2927,6 @@ class _TodayScreenState extends State<TodayScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l.t('today')),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddTaskMenu,
-        icon: const Icon(Icons.add),
-        label: Text(l.t('add_task')),
       ),
       body: Stack(
         children: [
@@ -3325,7 +3370,11 @@ class _TasksScreenState extends State<TasksScreen>
         endTime: end,
         weekdays: selectedDays.toList(),
       );
-      if (mounted) setState(() {});
+
+      if (mounted) {
+        setState(() {});
+        widget.onDataChanged();
+      }
     }
     if (ok == true) {
       await repo.renameTask(
@@ -3339,10 +3388,6 @@ class _TasksScreenState extends State<TasksScreen>
         setState(() {});
         widget.onDataChanged();
       }
-    }
-    if (mounted) {
-      setState(() {});
-      widget.onDataChanged();
     }
   }
 
@@ -3370,6 +3415,13 @@ class _TasksScreenState extends State<TasksScreen>
       ),
     );
 
+    if (ok == true) {
+      await action();
+      if (mounted) {
+        setState(() {});
+        widget.onDataChanged();
+      }
+    }
     if (ok == true) {
       await action();
       if (mounted) {
@@ -4426,7 +4478,7 @@ class PieChartBox extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  'Tamamlama: ${donePct.toStringAsFixed(0)}%',
+                  '${L((Hive.box(kBoxName).get(kUiStateKey) as Map?)?['language'] == 'en' ? AppLanguage.en : AppLanguage.tr).t('completion_rate')}: ${donePct.toStringAsFixed(0)}%',
                   style: TextStyle(
                     color: cs.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
@@ -4440,10 +4492,3 @@ class PieChartBox extends StatelessWidget {
     );
   }
 }
-echo "# antory" >> README.md 
-git init 
-git add README.md 
-git commit -m "first commit" 
-git branch -M main 
-git remote add origin https://github.com/blaknodscompany-cloud/antory.git
- git push -u origin main
